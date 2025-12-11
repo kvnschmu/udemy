@@ -1,0 +1,8 @@
+*.sh
+error.log
+coupon_link.txt
+src/test.py
+udemy_coupon.csv
+__pycache__/
+*.py[cod]
+*$py.class

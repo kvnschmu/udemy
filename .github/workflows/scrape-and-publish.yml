@@ -1,0 +1,67 @@
+name: Tägliche Coupon-Aktualisierung und Commit
+
+on:
+  schedule:
+    # Führt den Workflow täglich um 04:00 Uhr UTC aus (kann angepasst werden)
+    - cron: '0 4 * * *' 
+  workflow_dispatch: # Ermöglicht die manuelle Ausführung über die GitHub-Oberfläche
+
+jobs:
+  scrape_and_commit:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Repository auschecken
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          # Nötig, um den aktualisierten Code später zu pushen
+          fetch-depth: 0 
+          token: ${{ secrets.REPO_ACCESS_TOKEN }} # Muss in GitHub Secrets hinterlegt werden
+
+      # 2. Python-Umgebung einrichten
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 3. Systemabhängigkeiten für Selenium installieren (Chrome/Chromedriver)
+      - name: Install System Dependencies (Chrome for Selenium)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          # Überprüfen, ob Chrome installiert ist
+          google-chrome --version
+      
+      # 4. Python-Abhängigkeiten installieren
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          # Zusätzliche Installation von WebDriver Manager für einfache Handhabung
+          pip install webdriver-manager
+
+      # 5. Pfad für Chromedriver setzen (damit Selenium ihn findet)
+      - name: Set Chromedriver path
+        run: echo "PATH=$PATH:$(which chromedriver)" >> $GITHUB_ENV
+        
+      # 6. Python-Skript ausführen (aktualisiert udemy_coupon.json)
+      - name: Run Python Scraper (main.py)
+        run: python src/main.py
+
+      # 7. Änderungen prüfen und ggf. committen
+      - name: Commit files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Prüfe, ob udemy_coupon.json aktualisiert wurde
+          if git diff --exit-code udemy_coupon.json; then
+            echo "Keine Änderungen in udemy_coupon.json festgestellt."
+          else
+            echo "Änderungen gefunden. Committing und pushe..."
+            git add udemy_coupon.json
+            git commit -m "Automatisches Update der Udemy-Coupons: $(date -u +%Y-%m-%d)"
+            git push
+          fi
+        env:
+          # WICHTIG: Verwenden Sie den hier definierten Token
+          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
